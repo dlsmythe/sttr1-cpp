@@ -498,7 +498,7 @@ class Ship(object):
         if gamestate.DESTROYED:
             return
         if self.energy<=0:
-            if S<1:
+            if self.shields<1:
                 print "THE ENTERPRISE IS DEAD IN SPACE. IF YOU SURVIVE ALL IMPENDING"
                 print "ATTACK YOU WILL BE DEMOTED TO THE RANK OF PRIVATE"
                 #"this is a death loop -- wait until either Enterprise is destroyed"
