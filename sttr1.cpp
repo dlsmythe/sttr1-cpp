@@ -500,6 +500,7 @@ namespace std {
 	void showInstructions();
 	bool mainloop();
 	int stardate() { return T_; }
+	int initial_stardate() { return T0_; }
 	void gameover() { GAMEOVER = true; }
 	void destroyed() { DESTROYED = true; }
 
@@ -606,14 +607,6 @@ namespace std {
     void Ship::firePhasers(game_session *gamestate) {
     }
     void Ship::firePhotons(game_session *gamestate) {
-    }
-    void Ship::computerControl(game_session *gamestate) {
-    }
-    void Ship::printGalacticRecord(game_session *gamestate) {
-    }
-    void Ship::printStatusReport(game_session *gamestate) {
-    }
-    void Ship::photonTorpedoData(game_session *gamestate) {
     }
 
     void Ship::srscan(game_session *gamestate) {
@@ -1032,155 +1025,174 @@ namespace std {
 	    }
 	}
     
-	//     def computerControl(self, gamestate):
-	//         if self.damage("computerctl") < 0:
-	//             print "COMPUTER DISABLED"
-	//             return
-	//         while True:
-	//             print "COMPUTER ACTIVE AND AWAITING COMMAND",
-	//             try:
-	//                 A = input(": ")
-	//             except:
-	//                 A = -1
-	//             if A == 0:
-	//                 self.printGalacticRecord(gamestate)
-	//                 return
-	//             if A == 1:
-	//                 self.printStatusReport(gamestate)
-	//                 return
-	//             if A == 2:
-	//                 self.photonTorpedoData(gamestate)
-	//                 return
-	//             print "\nFUNCTIONS AVAILABLE FROM COMPUTER\n"
-	//       	print "   0 = CUMULATIVE GALATIC RECORD"
-	//       	print "   1 = STATUS REPORT"
-	//       	print "   2 = PHOTON TORPEDO DATA\n"
+    void Ship::computerControl(game_session *gamestate) {
+	if (curdamage_["computerctl"] < 0) {
+	    cout << "COMPUTER DISABLED" << endl;
+	    return;
+	}
 
-	//     def printGalacticRecord(self, gamestate):
-	//         print "COMPUTER RECORD OF GALAXY FOR QUADRANT %d,%d" % (self.Q1,self.Q2)
-	//         print "     0     1     2     3     4     5     6     7"
-	//         print "   ----- ----- ----- ----- ----- ----- ----- -----"
-	//         for I in range(8):
-	//             print ("%d " % (I)),
-	//             for J in range(8):
-	//                 q = self.computer_galaxy_scan.quadrant(I,J)
-	//                 print (" %d%d%d " % (q.num_klingons, q.num_starbases, q.num_stars)),
-	//             print "\n   ----- ----- ----- ----- ----- ----- ----- -----"
+	while (true) {
+	    cout << "COMPUTER ACTIVE AND AWAITING COMMAND: ";
+	    int A;
+	    try {
+		cin >> A;
+	    } catch (exception *e) {
+		A = -1;
+	    }
+	    switch (A) {
+	    case 0:
+		printGalacticRecord(gamestate);
+		return;
+	    case 1:
+		printStatusReport(gamestate);
+		return;
+	    case 2:
+		photonTorpedoData(gamestate);
+		return;
+	    default:
+		cout << "\nFUNCTIONS AVAILABLE FROM COMPUTER" << endl << endl;
+	      	cout << "   0 = CUMULATIVE GALATIC RECORD" << endl;
+	      	cout << "   1 = STATUS REPORT" << endl;
+	      	cout << "   2 = PHOTON TORPEDO DATA\n" << endl << endl;
+		break;
+	    }
+	}
+    }
 
-	//     def printStatusReport(self, gamestate):
-	//         print "\n   STATUS REPORT\n"
-	//         print "NUMBER OF KLINGONS LEFT  = %d" % (Galaxy::galaxy.remaining_klingons)
-	//         print "NUMBER OF STARDATES LEFT = %d" % (T0+MAX_STARDATES-gamestate.T)
-	//         print "NUMBER OF STARBASES LEFT = %d" % (Galaxy::galaxy.remaining_starbases)
-	//         self.printDamageControlReport(gamestate)
+    void Ship::printGalacticRecord(game_session *gamestate) {
+	cout << "COMPUTER RECORD OF GALAXY FOR QUADRANT " << q_row() << "," << q_col() << endl;
+	cout << "     0     1     2     3     4     5     6     7" << endl;
+	cout << "   ----- ----- ----- ----- ----- ----- ----- -----" << endl;
+#if 0
+	for (int I=0; I<8; I++) {
+	    cout << setw(1) << I << " ";
+	    for (int J=0; J<8; J++) {
+		auto q = computer_galaxy_scan_.quadrant(I,J);
+		cout << setw(1) << q.num_klingons<< setw(1) << q.num_starbases<< setw(1) << q.num_stars;
+	    }
+	    cout << endl << "   ----- ----- ----- ----- ----- ----- ----- -----" << endl;
+	}
+#else
+	cout << " ************ disabled (tbd) ************ " << endl;
+#endif
+    }
 
-	//     def photonTorpedoData(self, gamestate):
-	//         print 
-	//         for klingon in Galaxy::galaxy.quadrant(self.Q1, self.Q2).klingons():
-	//             if klingon.shields > 0:
-	//                 C1=self.pos.row
-	//                 A=self.pos.col
-	//                 W1=klingon.pos.row
-	//                 X=klingon.pos.row
-	//                 printDistanceAndDirection(C1,A,W1,X)
+    void Ship::printStatusReport(game_session *gamestate) {
 
-	//         while True:
-	//             A=""
-	//             while A[0] != 'Y' and A[0] != 'N':
-	//                 print "DO YOU WANT TO USE THE CALCULATOR",
-	//                 try:
-	//                     A = raw_input("? ")
-	//                 except:
-	//                     A = 'N'
+	cout << endl << "   STATUS REPORT" << endl << endl;
+	cout << "NUMBER OF KLINGONS LEFT  = " << Galaxy::remaining_klingons() << endl;
+	cout << "NUMBER OF STARDATES LEFT = " << (gamestate->initial_stardate()+MAX_STARDATES-gamestate->stardate()) << endl;
+	cout << "NUMBER OF STARBASES LEFT = " << Galaxy::remaining_starbases() << endl;
+	printDamageControlReport(gamestate);
+    }
 
-	//             if A[0] == "N":
-	//                 return
+    // ===================================
 
-	//             //"calculator"
-	//             print "YOU ARE AT QUADRANT ( %d,%d )  SECTOR ( %d,%d )" % (self.Q1,self.Q2,self.pos.row,self.pos.col)
-	//             print "SHIP'S & TARGET'S COORDINATES ARE",
-	//             try:
-	//                 str = raw_input("? ")
-	//                 (C1,A,W1,X) = str.split()
-	//                 printDistanceAndDirection(C1,A,W1,X)
-	//             except:
-	//                 print "INPUT GARBLED"
+    pair<int,int> printDir(int ship_r, int ship_c, int targ_r, int targ_c) {
+	int xdelta, ydelta;
+	xdelta=targ_c-ship_c;
+	ydelta=ship_r-targ_r;
+	if (xdelta>=0) {
+	    if (ydelta<0) {
+		if (abs(ydelta) < abs(xdelta)) {
+		    cout << "DIRECTION =" << (ship_r+(((abs(xdelta)-abs(ydelta))+abs(xdelta))/abs(xdelta))) << endl;
+		} else {
+		    cout << "DIRECTION =" << (ship_r+(abs(xdelta)/abs(ydelta))) << endl;
+		}
+		return pair<int,int>(xdelta,ydelta);
+	    }
+	    if (xdelta<=0) {
+		if (ydelta==0) {
+		    ship_r=5;
+		    if (abs(ydelta) <= abs(xdelta)) {
+			cout << "DIRECTION =" << (ship_r+(abs(ydelta)/abs(xdelta))) << endl;
+		    } else {
+			cout << "DIRECTION =" << (ship_r+(((abs(ydelta)-abs(xdelta))+abs(ydelta))/abs(ydelta))) << endl;
+		    }
+		    return pair<int,int>(xdelta,ydelta);
+		}
+	        ship_r=1;
+	        if (abs(ydelta) > abs(xdelta)) {
+		    cout << "DIRECTION =" << (ship_r+(((abs(ydelta)-abs(xdelta))+abs(ydelta))/abs(ydelta))) << endl;
+		    return pair<int,int>(xdelta,ydelta);
+		}
+	    }
+	    cout << "DIRECTION =" << (ship_r+(abs(ydelta)/abs(xdelta))) << endl;
+	    return pair<int,int>(xdelta,ydelta);
+	}
+	if (ydelta>0) {
+	    ship_r=3;
+	    if (abs(ydelta) >= abs(xdelta)) {
+		cout << "DIRECTION =" << (ship_r+(abs(xdelta)/abs(ydelta))) << endl;
+	    } else {
+		cout << "DIRECTION =" << (ship_r+(((abs(xdelta)-abs(ydelta))+abs(xdelta))/abs(xdelta))) << endl;
+	    }
+	    return pair<int,int>(xdelta,ydelta);
+	}
+	if (xdelta != 0) {
+	    ship_r=5;
+	    if (abs(ydelta) <= abs(xdelta)) {
+		cout << "DIRECTION =" << (ship_r+(abs(ydelta)/abs(xdelta))) << endl;
+	    } else {
+		cout << "DIRECTION =" << (ship_r+(((abs(ydelta)-abs(xdelta))+abs(ydelta))/abs(ydelta))) << endl;
+	    }
+	} else {
+	    ship_r=7;
+	    if (abs(ydelta) < abs(xdelta)) {
+		cout << "DIRECTION =" << (ship_r+(((abs(xdelta)-abs(ydelta))+abs(xdelta))/abs(xdelta))) << endl;
+	    } else {
+		cout << "DIRECTION =" << (ship_r+(abs(xdelta)/abs(ydelta))) << endl;
+	    }
+	}
+	return pair<int,int>(xdelta,ydelta);
+    }
 
-	// // ===================================
+    void printDistanceAndDirection(int ship_r, int ship_c, int targ_r, int targ_c) {
+	int xdelta, ydelta;
+	tie(xdelta,ydelta) = printDir(ship_r, ship_c, targ_r, targ_c);
+	cout << "DISTANCE =" << sqrt(pow(xdelta,2)+pow(ydelta,2)) << endl;
+    }
+    
+    // ===================================
+    
+    void Ship::photonTorpedoData(game_session *gamestate) {
+	cout << endl;
+	for (auto klingon : Galaxy::quadrant(q_row(), q_col()).klingons()) {
+	    if (klingon->shields() > 0) {
+		printDistanceAndDirection(s_row(), s_col(), klingon->row(), klingon->col());
+	    }
+	}
 
-	// def printDir(ship_r, ship_c, targ_r, targ_c):
-	//     xdelta=targ_c-ship_c
-	//     ydelta=ship_r-targ_r
-	//     if xdelta>=0:
-	//         if ydelta<0:
-	//              if ABS(ydelta) < ABS(xdelta):
-	//                  print "DIRECTION =%f" % (ship_r+(((ABS(xdelta)-ABS(ydelta))+ABS(xdelta))/ABS(xdelta)))
-	//              else:
-	//                  print "DIRECTION =%f" % (ship_r+(ABS(xdelta)/ABS(ydelta)))
-	//              return (xdelta,ydelta)
-	//         if xdelta<=0:
-	//             if ydelta==0:
-	//                 ship_r=5
-	//                 if ABS(ydelta) <= ABS(xdelta):
-	//                     print "DIRECTION =%f" % (ship_r+(ABS(ydelta)/ABS(xdelta)))
-	//                 else:
-	//                     print "DIRECTION =%f" % (ship_r+(((ABS(ydelta)-ABS(xdelta))+ABS(ydelta))/ABS(ydelta)))
-	//                 return (xdelta,ydelta)
-	//         ship_r=1
-	//         if ABS(ydelta) > ABS(xdelta):
-	//             print "DIRECTION =%f" % (ship_r+(((ABS(ydelta)-ABS(xdelta))+ABS(ydelta))/ABS(ydelta)))
-	//             return (xdelta,ydelta)
-	//         print "DIRECTION =%f" % (ship_r+(ABS(ydelta)/ABS(xdelta)))
-	//         return (xdelta,ydelta)
-	//     if ydelta>0:
-	//         ship_r=3
-	//         if ABS(ydelta) >= ABS(xdelta):
-	//             print "DIRECTION =%f" % (ship_r+(ABS(xdelta)/ABS(ydelta)))
-	//         else:
-	//             print "DIRECTION =%f" % (ship_r+(((ABS(xdelta)-ABS(ydelta))+ABS(xdelta))/ABS(xdelta)))
-	//         return (xdelta,ydelta)
-	//     if xdelta != 0:
-	//         ship_r=5
-	//         if ABS(ydelta) <= ABS(xdelta):
-	//             print "DIRECTION =%f" % (ship_r+(ABS(ydelta)/ABS(xdelta)))
-	//         else:
-	//             print "DIRECTION =%f" % (ship_r+(((ABS(ydelta)-ABS(xdelta))+ABS(ydelta))/ABS(ydelta)))
-	//     else:
-	//         ship_r=7
-	//         if ABS(ydelta) < ABS(xdelta):
-	//             print "DIRECTION =%f" % (ship_r+(((ABS(xdelta)-ABS(ydelta))+ABS(xdelta))/ABS(xdelta)))
-	//         else:
-	//             print "DIRECTION =%f" % (ship_r+(ABS(xdelta)/ABS(ydelta)))
+	while (true) {
+	    string A = "";
+	    do {
+	        cout << "DO YOU WANT TO USE THE CALCULATOR? ";
+		try {
+		    cin >> A;
+		} catch (exception *e) {
+		    A = "N";
+		}
+	    } while (A[0] != 'Y' and A[0] != 'N');
 
-	// def printDistanceAndDirection(ship_r, ship_c, targ_r, targ_c):
-	//     [xdelta,ydelta] = printDir(ship_r, ship_c, targ_r, targ_c)
-	//     print "DISTANCE =%f" % (sqrt(pow(xdelta,2)+pow(ydelta,2)))
+	    if (A[0] == 'N') {
+	        return;
+	    }
 
-	// // ===================================
-
-	// def setCourse(gamestate, ship):
-	//     ship.setCourse(gamestate)
-
-	// def printShortRangeSensorScan(gamestate, ship):
-	//     ship.srscan(gamestate)
-
-	// def printLongRangeSensorScan(gamestate, ship):
-	//     ship.lrscan(gamestate)
-
-	// def firePhasers(gamestate, ship):
-	//     ship.firePhasers(gamestate)
-
-	// def firePhotons(gamestate, ship):
-	//     ship.firePhotons(gamestate)
-
-	// def shieldControl(gamestate, ship):
-	//     ship.shieldControl(gamestate)
-
-	// def printDamageControlReport(gamestate, ship):
-	//     ship.printDamageControlReport(gamestate)
-
-	// def computerControl(gamestate, ship):
-	//     ship.computerControl(gamestate)
+	    //"calculator"
+	    cout << "YOU ARE AT QUADRANT ( " << q_row() << "," << q_col() << " )  SECTOR ( " << s_row() << "," << s_col() << " )" << endl;
+	    cout << "SHIP'S & TARGET'S COORDINATES ARE? ";
+	    int sr=0, sc=0, tr=0, tc=0;
+	    try {
+		string str;
+	        cin >> str;
+		stringstream conv(str);
+		conv >> sr >> sc >> tr >> tc;
+	    } catch (exception *e) {
+	        cout << "INPUT GARBLED" << endl;
+	    }
+	    printDistanceAndDirection(sr, sc, tr, tc);
+	}
+    }
     
     void game_session::showInstructions() {
 
