@@ -19,6 +19,7 @@ namespace dbg {
 	sector,
 	    quadrant,
 	    galaxy,
+	    ship,
 	    init,
 	    game,
 	    
@@ -52,6 +53,7 @@ namespace dbg {
 #define DGALAXY(LVL,FMT,...) dbg::print(dbg::flag::galaxy, (LVL), __FILE__, __FUNCTION__, __LINE__, FMT, ## __VA_ARGS__)
 #define DQUAD(LVL,FMT,...) dbg::print(dbg::flag::quadrant, (LVL), __FILE__, __FUNCTION__, __LINE__, FMT, ## __VA_ARGS__)
 #define DSECTOR(LVL,FMT,...) dbg::print(dbg::flag::sector, (LVL), __FILE__, __FUNCTION__, __LINE__, FMT, ## __VA_ARGS__)
+#define DSHIP(LVL,FMT,...) dbg::print(dbg::flag::ship, (LVL), __FILE__, __FUNCTION__, __LINE__, FMT, ## __VA_ARGS__)
 #define DINIT(LVL,FMT,...) dbg::print(dbg::flag::init, (LVL), __FILE__, __FUNCTION__, __LINE__, FMT, ## __VA_ARGS__)
 #define DGAME(LVL,FMT,...) dbg::print(dbg::flag::game, (LVL), __FILE__, __FUNCTION__, __LINE__, FMT, ## __VA_ARGS__)
 #define DEXEC(LVL,FLG,...) do { if (dbg_predicate((FLG),(LVL))) { __VA_ARGS__ }}while (false)
@@ -64,14 +66,24 @@ namespace std {
     // MAX_STARDATES: maximum number of stardates the mission contains
     const int MAX_STARDATES=30;
 
-    //C[]: course array
-    const int C[2][9] {
-	{  0, -1, -1, -1,  0,  1,  1,  1,  0 },	// X
-	    {  1,  1,  0, -1, -1, -1,  0,  1,  1 }	// Y
+    //C[]: course direct array. determines sign of movement increment in a given direction.
+    const float C[2][9] {
+	{  0, -1, -1, -1,  0,  1,  1,  1,  0 },	// row
+	{  1,  1,  0, -1, -1, -1,  0,  1,  1 }	// col
     };
 
     int randrange(int n) {
 	return trunc(n * ((rand()-1) / (float)RAND_MAX));
+    }
+
+    string choice(unordered_map<string,string> m) {
+	int i = randrange(m.size());
+	for (auto x : m) {
+	    if (i-- == 0) {
+		return x.first;
+	    }
+	}
+	return "error";
     }
     
     class SectorPos {
@@ -500,15 +512,22 @@ namespace std {
 	void showInstructions();
 	bool mainloop();
 	int stardate() { return T_; }
+	void increment_stardate() { ++T_; }
 	int initial_stardate() { return T0_; }
-	void gameover() { GAMEOVER = true; }
-	void destroyed() { DESTROYED = true; }
+	void gameover(bool state) { GAMEOVER_ = state; }
+	bool gameover() { return GAMEOVER_; }
+	void destroyed(bool state) { DESTROYED_ = state; }
+	bool destroyed() { return DESTROYED_; }
+	bool SAMEQUADRANT() { return SAMEQUADRANT_; }
+	void SAMEQUADRANT(bool state) { SAMEQUADRANT_ = state; }
+	void RESTART(bool state) { RESTART_ = state; }
+	bool RESTART() { return RESTART_; }
 
     private:
-	bool GAMEOVER = false;
-	bool DESTROYED = false;
-	bool SAMEQUADRANT = false;
-	bool RESTART = false;
+	bool GAMEOVER_ = false;
+	bool DESTROYED_ = false;
+	bool SAMEQUADRANT_ = false;
+	bool RESTART_ = false;
 	int T_; // current stardate
 	int T0_; // starting stardate
 	time_t start_time_;
@@ -520,14 +539,14 @@ namespace std {
 
 	unordered_map<string,string> system_names {
 	    { "warpdrive", "WARP ENGINES" },
-		{ "srsensors", "S.R. SENSORS" },
-		    { "lrsensors", "L.R. SENSORS" },
-			{ "phasers"  , "PHASER CNTRL" },
-			    { "photons"  , "PHOTON TUBES" },
-				{ "damagectl", "DAMAGE CNTRL" },
-				    { "shields"  , "SHIELD CNTRL" },
-					{ "computer" , "COMPUTER" },
-					    { "computerctl" , "COMPT. CNTRL" }
+	    { "srsensors", "S.R. SENSORS" },
+	    { "lrsensors", "L.R. SENSORS" },
+	    { "phasers"  , "PHASER CNTRL" },
+	    { "photons"  , "PHOTON TUBES" },
+	    { "damagectl", "DAMAGE CNTRL" },
+	    { "shields"  , "SHIELD CNTRL" },
+	    { "computer" , "COMPUTER" },
+	    { "computerctl" , "COMPT. CNTRL" }
 	};
 
 	//MAXPHOTONS: full magazine of torpedos
@@ -543,18 +562,18 @@ namespace std {
 	    clear_damage();
 	    //computer_galaxy_scan = Galaxy();
 
-	    //Q1 and Q2: X and Y coordinates of the current quadrant, 0..7 each
-	    Q1=randrange(8);
-	    Q2=randrange(8);
+	    //X and Y coordinates of the current quadrant, 0..7 each
+	    q_row_ = randrange(8);
+	    q_col_ = randrange(8);
 
 	    //S1 and S2, X and Y coordinates of the ship in the current quadrant, 1..8 each
 	    int r, c;
-	    tie(r, c) = Galaxy::randomemptypos(Q1,Q2);
+	    tie(r, c) = Galaxy::randomemptypos(q_row_,q_col_);
 	    pos_ = SectorPos(r,c);
 	}
 
-	int q_row() { return Q1; }
-	int q_col() { return Q2; }
+	int q_row() { return q_row_; }
+	int q_col() { return q_col_; }
 	int s_row() { return pos_.row(); }
 	int s_col() { return pos_.col(); }
 	void pos(int r, int c) { pos_ = SectorPos(r,c); }
@@ -576,7 +595,7 @@ namespace std {
 	int energy_;
 	int shields_;
 	SectorPos pos_ = SectorPos(0,0);
-	int Q1, Q2; // ship's quadrant (r,c)
+	int q_row_, q_col_; // ship's quadrant (r,c)
 	enum Ship::cond condition;
 	//Galaxy computer_galaxy_scan;
 
@@ -584,7 +603,7 @@ namespace std {
 	int damage(string sysname) { return curdamage_[sysname]; }
 	string devicename(string sysname) { return system_names[sysname]; }
 	void checkForDamage(game_session *gamestate);
-	void move(game_session *gamestate, int course, int warp_factor);
+	void move(game_session *gamestate, float course, float warp_factor);
 	void printGalacticRecord(game_session *gamestate);
 	void printStatusReport(game_session *gamestate);
 	void photonTorpedoData(game_session *gamestate);
@@ -599,15 +618,6 @@ namespace std {
 	    return "XXX";
 	}
     };
-
-    void Ship::move(game_session *gamestate, int course, int warp_factor) {
-    }
-    void Ship::setCourse(game_session *gamestate) {
-    }
-    void Ship::firePhasers(game_session *gamestate) {
-    }
-    void Ship::firePhotons(game_session *gamestate) {
-    }
 
     void Ship::srscan(game_session *gamestate) {
 	// short-range sensor scan
@@ -693,7 +703,6 @@ namespace std {
 	cout << "        SHIELDS         	" << shields_ << endl;
 	cout << "---------------------------------------" << endl;
     }
-
     
     void Ship::lrscan(game_session *gamestate) {
 	//printLongRangeSensorScan
@@ -747,7 +756,7 @@ namespace std {
 	if (DOCKED) {
 	    cout << "STAR BASE SHIELDS PROTECT THE ENTERPRISE" << endl;
 	} else {
-	    for (auto klingon : Galaxy::quadrant(Q1,Q2).klingons()) {
+	    for (auto klingon : Galaxy::quadrant(q_row_,q_col_).klingons()) {
 		if (klingon->shields() > 0) {
 		    int H = (klingon->shields() / pos_.distance_to(klingon->pos())) * randrange(2);
 		    shields_ -= H;
@@ -762,143 +771,184 @@ namespace std {
 	}
     }
 
-	//     def move(self, gamestate, course, warp_factor):
-	//         //"quadrant is 8 units across.  Warp factor is a fraction of that."
-	//         N=int(warp_factor*8)
+    void Ship::move(game_session *gamestate, float course, float warp_factor) {
+	//"quadrant is 8 units across.  Warp factor is a fraction of that."
+	int N=trunc(warp_factor*8);
 
-	//         //"erase our current position?"
-	//         print "Removing starship at [{0},{1}]->sector({2},{3})".format(self.Q1,self.Q2,self.pos.row, self.pos.col)
-	//         Galaxy::galaxy.quadrants[self.Q1,self.Q2]->setsector(Sector(self.pos.row, self.pos.col))
+	//"erase our current position?"
+	DSHIP(1, "Removing starship at [%d,%d]->sector(%d,%d)", q_row(),q_col(),s_row(), s_col());
+	Galaxy::quadrant(q_row(),q_col()).setsector(Sector(s_row(), s_col()));
 
-	//         // "save our starting position"
-	//         X=self.pos.row
-	//         Y=self.pos.col
-	//         oldqrow = self.Q1
-	//         oldqcol = self.Q2
+	// "save our starting position"
+	int orig_srow=s_row();
+	int orig_scol=s_col();
+	int orig_qrow = q_row();
+	int orig_qcol = q_col();
+	float cur_srow = orig_srow;
+	float cur_scol = orig_scol;
+	int cur_qrow = orig_qrow;
+	int cur_qcol = orig_qcol;
 
-	//         // "calculate the incremental delta movement"
-	//         C2=int(course)
-	//         X1=C[C2-1,0]+(C[C2,0]-C[C2-1,0])*(course-(C2-1))
-	//         X2=C[C2-1,1]+(C[C2,1]-C[C2-1,1])*(course-(C2-1))
+	// "calculate the incremental delta movement"
+	int C2 = trunc(course);
+	float X1 = C[0][C2-1] + (C[0][C2] - C[0][C2-1])*(course-(C2-1));
+	float X2 = C[1][C2-1] + (C[1][C2] - C[1][C2-1])*(course-(C2-1));
 
-	//         //"move in N steps, checking at each step for collisions"
-	//         for I in range(N):
-	//             self.pos.row += X1
-	//             self.pos.col += X2
-	//             if self.pos.row< -.5 or self.pos.row >= 7.5 or self.pos.col<-.5 or self.pos.col >= 7.5:
-	//                 //"flew out of the quadrant."
-	//                 X=self.Q1*8+X+X1*N
-	//                 Y=self.Q2*8+Y+X2*N
-	//                 self.Q1=int(X/8)
-	//                 self.Q2=int(Y/8)
-	//                 self.pos.row=int(X-self.Q1*8+.5)
-	//                 self.pos.col=int(Y-self.Q2*8+.5)
-	//                 // check for wrap-around
-	//                 if self.pos.row < 0:
-	//                     self.Q1=self.Q1-1
-	//                     self.pos.row=7
-	//                 if self.pos.col < 0:
-	//                     self.Q2=self.Q2-1
-	//                     self.pos.col=7
-	//                 if self.pos.row > 7:
-	//                     self.Q1 += 1
-	//                     self.pos.row = 0
-	//                 if self.pos.col > 7:
-	//                     self.Q2 += 1
-	//                     self.pos.col = 0
-	//                 if self.Q1 < 0:
-	//                     self.Q1 = 7
-	//                 if self.Q1 > 7:
-	//                     self.Q1 = 0
+	//"move in N steps, checking at each step for collisions"
+	for (int I = 0; I < N; I++) {
+	    cur_srow += X1;
+	    cur_scol += X2;
+	    if (cur_srow < 0 || cur_srow > 7 || cur_scol < 0 || cur_scol > 7) {
+	        //"flew out of the quadrant."
+	        orig_srow+=cur_qrow*8+X1*N;
+	        orig_scol+=cur_qcol*8+X2*N;
+	        cur_qrow=trunc(orig_srow/8);
+	        cur_qcol=trunc(orig_scol/8);
+	        cur_srow=orig_srow-cur_qrow*8;
+	        cur_scol=orig_scol-cur_qcol*8;
 
-	//                 gamestate.stardate += 1 #"time passes"
-	//                 self.energy -= N+5
-	//                 gamestate.SAMEQUADRANT=False
-	//                 return
-            
-	//             occupant = Galaxy::galaxy.quadrant(self.Q1,self.Q2).sector(int(self.pos.row),int(self.pos.col))
-	//             if occupant.type != Sector.SPACE:
-	//                 print " WARP ENGINES SHUTDOWN AT SECTOR %d,%d DUE TO BAD NAVIGATION" % (self.pos.row,self.pos.col)
-	//                 self.pos.row -= X1
-	//                 self.pos.col -= X2
-	//                 break
+	        // check for wrap-around
+	        if (cur_srow < 0) {
+	            cur_qrow--;
+	            cur_srow=7;
+		}
+	        if (cur_scol < 0) {
+	            cur_qcol--;
+	            cur_scol=7;
+		}
+	        if (cur_srow > 7) {
+	            cur_qrow++;
+	            cur_srow = 0;
+		}
+	        if (cur_scol > 7) {
+	            cur_qcol++;
+	            cur_scol = 0;
+		}
+	        if (cur_qrow < 0) {
+	            cur_qrow = 7;
+		}
+	        if (cur_qrow > 7) {
+	            cur_qrow = 0;
+		}
 
-	//         // NOT a new quadrant...
+		q_row_ = cur_qrow;
+		q_col_ = cur_qcol;
+		pos_ = SectorPos(trunc(cur_srow), trunc(cur_scol));
+	        gamestate->increment_stardate(); // "time passes"
+	        energy_ -= N+5;
+	        gamestate->SAMEQUADRANT(false);
+	        return;
+	    }
+	    if (Galaxy::quadrant(q_row(),q_col()).sector(cur_srow, cur_scol).type() != Sector::type::SPACE) {
+	        cout << " WARP ENGINES SHUTDOWN AT SECTOR " << cur_srow << "," << cur_scol << " DUE TO BAD NAVIGATION" << endl;
+	        cur_srow -= X1;
+	        cur_scol -= X2;
+	        break;
+	    }
+	}
+
+	// NOT a new quadrant...
         
-	//         //"spend the energy it took to move here"
-	//         self.energy = self.energy - N + self.shields_
-	//         if warp_factor>=1:
-	//             gamestate.T += 1 #"time passes"
+	//"spend the energy it took to move here"
+	energy_ -= (N - shields_);
+	if (warp_factor>=1) {
+	    gamestate->increment_stardate(); // "time passes"
+	}
 
-	//         //"no collisions -- set our new position"
-	//         self.pos.row=int(self.pos.row)
-	//         self.pos.col=int(self.pos.col)
+	//"no collisions -- set our new position"
+	pos_ = SectorPos(trunc(cur_srow), trunc(cur_scol));
+	Galaxy::quadrant(q_row(),q_col()).setsector(Starship(s_row(),s_col())); // XXX - possibly redundant -- see mainloop
 
-	//         Galaxy::galaxy.quadrants[self.Q1,self.Q2]->setsector(Starship(self.pos.row,self.pos.col))
+	srscan(gamestate);
+    }
 
-	//         self.srscan(gamestate)
+    void Ship::setCourse(game_session *gamestate) {
+	float C1=0, W1=0;
+	while (C1<1 or C1>=9 or W1<0 or W1>8) {
+	    cout << "COURSE (1-9):";
+	    try {
+		string str;
+		getline(cin, str);
+		stringstream conv(str);
+		conv >> C1;
+	    } catch (exception *e) {
+	        C1 = 0;
+	    }
+	    if (C1==0) {
+	        return;
+	    }
+	    if (C1>=1 && C1 < 9) {
+	        cout << "WARP FACTOR (0-8):";
+		try {
+		    string str;
+		    getline(cin, str);
+		    stringstream conv(str);
+		    conv >> W1;
+		} catch (exception *e) {
+		    W1 = 0;
+		}
+		if (W1>=0 && W1<=8) {
+		    if (curdamage_["warpdrive"]<0 && W1 > .2) {
+			cout << "WARP ENGINES ARE DAMAGED, MAXIMUM SPEED = WARP .2" << endl;
+			W1=-1;
+		    }
+		}
 
-	//     def setCourse(self, gamestate):
-	//         C1=0
-	//         while C1<1 or C1>=9 or W1<0 or W1>8:
-	//             print "COURSE (1-9):",
-	//             try:
-	//                 C1 = input("? ")
-	//             except:
-	//                 C1 = 0
-	//             if C1==0:
-	//                 return
-	//             if C1>=1 and C1 < 9:
-	//                 print "WARP FACTOR (0-8):",
-	//                 try:
-	//                     W1 = input("? ")
-	//                 except:
-	//                     W1 = 0
-	//                 if W1>=0 and W1<=8:
-	//                     if self.damage("warpdrive")<0 and W1 > .2:
-	//                         print "WARP ENGINES ARE DAMAGED, MAXIMUM SPEED = WARP .2"
-	//                         W1=-1
-	//         if Galaxy::galaxy.quadrant(self.Q1,self.Q2).num_klingons > 0:
-	//             self.checkForDamage(gamestate)
-	//         if gamestate.DESTROYED:
-	//             return
-	//         if self.energy<=0:
-	//             if self.shields_<1:
-	//                 print "THE ENTERPRISE IS DEAD IN SPACE. IF YOU SURVIVE ALL IMPENDING"
-	//                 print "ATTACK YOU WILL BE DEMOTED TO THE RANK OF PRIVATE"
-	//                 //"this is a death loop -- wait until either Enterprise is destroyed"
-	//                 //"or all Klingons in this quadrant self-destruct"
-	//                 while Galaxy::galaxy.quadrant(self.Q1,self.Q2).num_klingons>0:
-	//                     self.checkForDamage(gamestate)
-	//                 print "THERE ARE STILL %d KLINGON BATTLE CRUISERS" % (Galaxy::galaxy.remaining_klingons)
-	//                 gamestate.RESTART=True
-	//                 return
-	//             print "YOU HAVE %d UNITS OF ENERGY" % (self.energy)
-	//             print "SUGGEST YOU GET SOME FROM YOUR SHIELDS WHICH HAVE UNITS LEFT" % (self.shields_)
-	//             return
+		if (Galaxy::quadrant(q_row(),q_col()).num_klingons() > 0) {
+		    checkForDamage(gamestate);
+		}
+		if (gamestate->destroyed()) {
+		    return;
+		}
+		if (energy_ <= 0) {
+		    if (shields_ < 1) {
+			cout << "THE ENTERPRISE IS DEAD IN SPACE. IF YOU SURVIVE ALL IMPENDING" << endl;
+			cout << "ATTACK YOU WILL BE DEMOTED TO THE RANK OF PRIVATE" << endl;
+			//"this is a death loop -- wait until either Enterprise is destroyed"
+			//"or all Klingons in this quadrant self-destruct"
+			while (!gamestate->destroyed()  &&  Galaxy::quadrant(q_row(),q_col()).num_klingons() > 0) {
+			    checkForDamage(gamestate);
+			}
+			if (gamestate->destroyed()) {
+			    cout << "THERE ARE STILL " << Galaxy::remaining_klingons() << " KLINGON BATTLE CRUISERS" << endl;
+			    gamestate->RESTART(true);
+			    return;
+			}
+		    }
+		    cout << "YOU HAVE " << energy_ << " UNITS OF ENERGY" << endl;
+		    cout << "SUGGEST YOU GET SOME FROM YOUR SHIELDS WHICH HAVE " << shields_ << " UNITS LEFT" << endl;
+		    return;
+		}
 
-	//         // repair a little damage?
-	//         for I in self.systems:
-	//             if self.curdamage[I] < 0:
-	//                 self.curdamage[I] += 1
+		// always repair a little damage
+		for (auto s : system_names) {
+		    if (curdamage_[s.first] < 0) {
+			curdamage_[s.first]++;  // XXX -- maybe be a little more generous?
+		    }
+		}
 
-	//         // cause a little damage?
-	//         if randint(1,10) <= 2:
-	//             R1 = choice(self.systems)
-	//             print "\nDAMAGE CONTROL REPORT:",
-	//             print self.devicename(R1),
-	//             if randint(0,1) == 1:
-	//                 self.curdamage[R1] -= randint(1,5)
-	//                 print " DAMAGED"
-	//             else:
-	//                 self.curdamage[R1] += randint(1,5)
-	//                 print " STATE OF REPAIR IMPROVED"
-	//             print 
-
-	//         self.move(gamestate, C1,W1)
+		// randomly cause or repair some damage
+		if (randrange(10) <= 2) { // 30% chance
+		    auto sname = choice(system_names);
+		    cout << endl << "DAMAGE CONTROL REPORT:" << endl;
+		    cout << devicename(sname);
+		    if (randrange(2) == 0) {
+			curdamage_[sname] -= randrange(5)+1;
+			cout << " DAMAGED" << endl;
+		    } else {
+			curdamage_[sname] += randrange(5)+1;
+			cout << " STATE OF REPAIR IMPROVED" << endl;
+		    }
+		}
+		move(gamestate, C1,W1);
+	    }
+	}
+    }
     
+    void Ship::firePhasers(game_session *gamestate) {
+    }
 	//     def firePhasers(self, gamestate):
-	//         quadrant = Galaxy::galaxy.quadrant(self.Q1,self.Q2)
+	//         quadrant = Galaxy::galaxy.quadrant(q_row(),q_col())
 	//         if quadrant.num_klingons <= 0:
 	//             print "SHORT RANGE SENSORS REPORT NO KLINGONS IN THIS QUANDRANT"
 	//             return
@@ -937,6 +987,8 @@ namespace std {
 	//             print "OUT OF ENERGY"
 	//             gamestate.DESTROYED=True
 
+    void Ship::firePhotons(game_session *gamestate) {
+    }
 	//     def firePhotons(self, gamestate):
 	//         if self.damage("photons") < 0:
 	//             print "PHOTON TUBES ARE NOT OPERATIONAL"
@@ -957,10 +1009,10 @@ namespace std {
 	//         C2=int(C1)
 	//         X1=C[C2-1,0]+(C[C2,0]-C[C2-1,1])*((C1-1)-(C2-1))
 	//         X2=C[C2-1,1]+(C[C2,1]-C[C2-1,2])*((C1-1)-(C2-1))
-	//         X=self.pos.row
-	//         Y=self.pos.col
+	//         X=s_row()
+	//         Y=s_col()
 	//         self.photons -= 1
-	//         quadrant = Galaxy::galaxy.quadrant(self.Q1,self.Q2)
+	//         quadrant = Galaxy::galaxy.quadrant(q_row(),q_col())
 	//         print "TORPEDO TRACK:"
 	//         //"Loop until we hit something or torpedo leaves the quadrant"
 	//         hit = False
@@ -1094,6 +1146,9 @@ namespace std {
 
     // ===================================
 
+    // XXX - double-check this.  I may have fat-fingered some of the logic converting from python...
+    // NB: might be a good test-case for the "test" framework
+    
     pair<int,int> printDir(int ship_r, int ship_c, int targ_r, int targ_c) {
 	int xdelta, ydelta;
 	xdelta=targ_c-ship_c;
@@ -1298,16 +1353,16 @@ namespace std {
 	     << MAX_STARDATES << " STARDATES WITH "
 	     << Galaxy::remaining_starbases() << " STARBASES" << endl;
 
-	RESTART=false;
-	while (!GAMEOVER && !RESTART) {
-	    // XXX - debug code
-	    // for (int row = 0; row < 8; row++) {
-	    // 	for (int col = 0; col < 8; col++) {
-	    // 	    if (Galaxy::galaxy.quadrant(enterprise.q_row(),enterprise.q_col()).sector(row,col).type == Sector.KLINGON) {
-	    // 		print "SECTOR(%d,%d)=KLINGON" % (row,col);
-	    // 	    }
-	    // 	}
-	    // }
+	RESTART(false);
+	while (!gameover() && !RESTART()) {
+	    DEXEC(3, dbg::flag::game,
+	    for (int row = 0; row < 8; row++) {
+	    	for (int col = 0; col < 8; col++) {
+	    	    if (Galaxy::quadrant(enterprise.q_row(),enterprise.q_col()).sector(row,col).type() == Sector::type::KLINGON) {
+	    		cout << "SECTOR(" << row << "," << col << ")=KLINGON" << endl;
+	    	    }
+	    	}
+	    });
         
 	    cout << "ENTERING QUADRANT " << enterprise.q_row() << "," << enterprise.q_col() << endl;
 	    Quadrant& q = Galaxy::quadrant(enterprise.q_row(),enterprise.q_col());
@@ -1323,23 +1378,23 @@ namespace std {
 	    }
 	    enterprise.srscan(this);
 
-	    DESTROYED=false;
-	    SAMEQUADRANT=true;
-	    while (SAMEQUADRANT && !RESTART && !GAMEOVER) {
+	    destroyed(false);
+	    SAMEQUADRANT(true);
+	    while (SAMEQUADRANT() && !RESTART() && !gameover()) {
 		if (Galaxy::remaining_klingons()<=0) {
 		    cout << endl << "THE LAST KLINGON BATTLE CRUISER IN THE GALAXY HAS BEEN DESTROYED" << endl;
 		    cout << "THE FEDERATION HAS BEEN SAVED !!!" << endl << endl;
 		    cout << "YOUR EFFICIENCY RATING =" << ((Galaxy::total_klingons()/(T_-T0_))*1000) << endl;
 		    time_t T1 = chrono::system_clock::to_time_t(chrono::system_clock::now());
 		    cout << "YOUR ACTUAL TIME OF MISSION = " << (trunc((T1-start_time_)/60.0)) << " MINUTES" << endl;
-		    RESTART=true;
-		} else if (DESTROYED) {
+		    RESTART(true);
+		} else if (destroyed()) {
 		    cout << endl <<  "THE ENTERPRISE HAS BEEN DESTROYED. THE FEDERATION WILL BE CONQUERED" << endl;
-		    GAMEOVER=true;
+		    gameover(true);
 		} else if (T_ > (T0_+MAX_STARDATES)) {
 		    cout << endl << "IT IS STARDATE " << T_ << endl;
 		    cout << "MISSION TIME LIMIT EXPIRED.  YOU HAVE FAILED." << endl;
-		    RESTART=true;
+		    RESTART(true);
 		} else {
 		    cout << "COMMAND:? ";
 		    string cmd = "";
