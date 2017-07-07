@@ -9,6 +9,47 @@
 #include <cmath>
 #include <random>
 #include <chrono>
+#include <bitset>
+#include <cstdarg>
+
+namespace dbg {
+
+    enum class flag {
+	verbose,
+	sector,
+	    quadrant,
+	    galaxy,
+	    init,
+	    
+	    numflags
+	    };
+    using dbgflags = typename std::bitset<static_cast<int>(dbg::flag::numflags)>;
+    dbgflags g_flags;
+    int g_level;
+
+    extern "C" {
+	int vasprintf(char **strp, const char *fmt, va_list ap);
+    }
+    void print(dbg::flag flag, int level, const char *filename, const char *funcname, int lineno, std::string fmt, ...) {
+	if (g_flags[static_cast<int>(flag::verbose)] || 0 == g_level || (g_flags[static_cast<int>(flag)]  &&  g_level >= level)) {
+	    va_list ap;
+	    char *msg;
+
+	    va_start(ap, fmt);
+	    vasprintf(&msg, fmt.c_str(), ap);
+	    std::cerr << filename << ":" << lineno << "[" << funcname << "] " << msg << std::endl;
+	    va_end(ap);
+	    free(msg);
+	}
+    }
+
+#define DBGENABLE(F) dbg::g_flags[static_cast<int>(dbg::flag::F)] = true
+#define DVERB(LVL,FMT,...) dbg::print(dbg::flag::verbose, (LVL), __FILE__, __FUNCTION__, __LINE__, FMT, ## __VA_ARGS__)
+#define DGALAXY(LVL,FMT,...) dbg::print(dbg::flag::galaxy, (LVL), __FILE__, __FUNCTION__, __LINE__, FMT, ## __VA_ARGS__)
+#define DQUAD(LVL,FMT,...) dbg::print(dbg::flag::quadrant, (LVL), __FILE__, __FUNCTION__, __LINE__, FMT, ## __VA_ARGS__)
+#define DSECTOR(LVL,FMT,...) dbg::print(dbg::flag::sector, (LVL), __FILE__, __FUNCTION__, __LINE__, FMT, ## __VA_ARGS__)
+#define DINIT(LVL,FMT,...) dbg::print(dbg::flag::init, (LVL), __FILE__, __FUNCTION__, __LINE__, FMT, ## __VA_ARGS__)
+}
 
 namespace std {
 
@@ -62,18 +103,38 @@ namespace std {
 		KLINGON
 		};
 
-	Sector(int row, int col, Sector::type type = Sector::type::SPACE): pos_(SectorPos(row,col)), type_(type), id_(ID++) { cerr << "new space " << id() << " at sector " << row << "," << col << endl;}
-	virtual ~Sector() { cerr << "destructing sector with id " << id_ << endl; }
+	Sector() = delete;
+	Sector(int row, int col, Sector::type type = Sector::type::SPACE): pos_(SectorPos(row,col)), type_(type), id_(ID++) {
+	    DSECTOR(2, "new space %d at sector %d,%d", id(), row, col);
+	}
+	Sector(const Sector& rhs): pos_(rhs.pos_), type_(rhs.type_), id_(ID++) {
+	    DSECTOR(2, "copy-constructing sector with id %d to new one with id %d", rhs.id_, id_);
+	}
+	Sector(const Sector&& rhs): pos_(rhs.pos_), type_(rhs.type_), id_(ID++) {
+	    DSECTOR(2, "move-constructing sector with id %d to new one with id %d", rhs.id_, id_);
+	}
+	Sector& operator=(const Sector& p) {
+	    id_ = ID++;
+	    pos_ = p.pos_;
+	    type_ = p.type_;
+	    DSECTOR(2, "copy-assigning sector with id %d to new one with id %d", p.id_, id_);
+	    return *this;
+	}
+	Sector& operator=(const Sector&& p) {
+	    id_ = ID++;
+	    pos_ = p.pos_;
+	    type_ = p.type_;
+	    DSECTOR(2, "move-assigning sector with id %d to new one with id %d", p.id_, id_);
+	    return *this;
+	}
+	virtual ~Sector() {
+	    DSECTOR(2, "destructing sector with id %d", id_);
+	}
 	virtual string glyph() { return "   "; }
 	Sector::type type() { return type_; }
 	int row() { return pos_.row(); }
 	int col() { return pos_.col(); }
 	SectorPos& pos() { return pos_; }
-	Sector& operator=(const Sector& p) {
-	    pos_ = p.pos_;
-	    type_ = p.type_;
-	    return *this;
-	}
 	virtual int shields() { return 0; }
 	virtual void shields(int val) { }
 	int id() { return id_; }
@@ -87,10 +148,12 @@ namespace std {
     
     class Klingon : public Sector {
     public:
-	Klingon(int row, int col): Sector(row,col,Sector::type::KLINGON) {cerr << "new Klingon " << id() << " at sector " << row << "," << col << endl;}
+	Klingon(int row, int col): Sector(row,col,Sector::type::KLINGON) {
+	    DSECTOR(2, "new Klingon %d at sector %d,%d", id(), row, col);
+	}
 	Klingon(Klingon& rhs): Sector(rhs.row(),rhs.col(),Sector::type::KLINGON) {
 	    shields_ = rhs.shields_;
-	    cerr << " copied klingon at sector " << row() << "," << col() << endl;
+	    DSECTOR(2, "copied Klingon %d at sector %d,%d", id(), row(), col());
 	}
 	virtual string glyph() override { return "+++"; }
 	virtual int shields() override { return shields_; }
@@ -101,19 +164,25 @@ namespace std {
 	
     class Starship : public Sector {
     public:
-	Starship(int row, int col): Sector(row,col,Sector::type::STARSHIP) { cout << "new Starship " << id() << " at sector " << row << "," << col << endl;}
+	Starship(int row, int col): Sector(row,col,Sector::type::STARSHIP) {
+	    DSECTOR(2, "new Starship %d at sector %d,%d", id(), row, col);
+	}
 	virtual string glyph() override { return "<*>"; }
     };
 	
     class Starbase : public Sector {
     public:
-	Starbase(int row, int col): Sector(row,col,Sector::type::STARBASE) {cout << "new Starbase " << id() << " at sector " << row << "," << col << endl;}
+	Starbase(int row, int col): Sector(row,col,Sector::type::STARBASE) {
+	    DSECTOR(2, "new Starbase %d at sector %d,%d", id(), row, col);
+	}
 	virtual string glyph() override { return ">!<"; }
     };
 	
     class Star : public Sector {
     public:
-	Star(int row, int col): Sector(row,col,Sector::type::STAR) {cout << "new Star " << id() << " at sector " << row << "," << col << endl;}
+	Star(int row, int col): Sector(row,col,Sector::type::STAR) {
+	    DSECTOR(2, "new Star %d at sector %d,%d", id(), row, col);
+	}
 	virtual string glyph() override { return " * "; }
     };
 
@@ -1219,10 +1288,13 @@ namespace std {
         
 	    cout << "ENTERING QUADRANT " << enterprise.q_row() << "," << enterprise.q_col() << endl;
 	    Quadrant& q = Galaxy::quadrant(enterprise.q_row(),enterprise.q_col());
-	    cerr << "enterprise at secpos " << enterprise.s_row() << "," << enterprise.s_col() << endl;
+	    DVERB(1, "enterprise at secpos %d, %d\n", (int)enterprise.s_row(), (int)enterprise.s_col());
+	    //	    cerr << "enterprise at secpos " << enterprise.s_row() << "," << enterprise.s_col() << endl;
 	    auto s = Starship(enterprise.s_row(), enterprise.s_col());
 	    enterprise.pos(s.row(), s.col());
 	    q.setsector(s, true);
+	    auto qs = q.sector(s.row(), s.col());
+	    cerr << "q's sector " << s.row() << "," << s.col() << " is " << qs.glyph() << " (" << qs.id() << ")" << endl;
 	    if (q.num_klingons() > 0 && enterprise.shields()<=200) {
 		cout << "COMBAT AREA      CONDITION RED" << endl;
 		cout << "   SHIELDS DANGEROUSLY LOW" << endl;
@@ -1292,6 +1364,7 @@ namespace std {
     }
 
     int my_main(int argc, char **argv) {
+	DVERB(1, "entry");
 	game_session game = game_session();
 	while (false == game.mainloop()) {
 	    game = game_session();
@@ -1303,6 +1376,8 @@ namespace std {
 
 int main(int argc, char **argv) {
     try {
+	//	DBGENABLE(verbose);
+	dbg::g_level = 1;
 	return std::my_main(argc, argv);
     } catch (std::exception& e) {
 	std::cout << "Died from an exception" << e.what() << std::endl;
