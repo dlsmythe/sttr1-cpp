@@ -20,6 +20,7 @@ namespace dbg {
 	    quadrant,
 	    galaxy,
 	    init,
+	    game,
 	    
 	    numflags
 	    };
@@ -30,8 +31,11 @@ namespace dbg {
     extern "C" {
 	int vasprintf(char **strp, const char *fmt, va_list ap);
     }
+    bool dbg_predicate(dbg::flag flag, int level) {
+	return (g_flags[static_cast<int>(flag::verbose)] || 0 == g_level || (g_flags[static_cast<int>(flag)]  &&  g_level >= level));
+    }
     void print(dbg::flag flag, int level, const char *filename, const char *funcname, int lineno, std::string fmt, ...) {
-	if (g_flags[static_cast<int>(flag::verbose)] || 0 == g_level || (g_flags[static_cast<int>(flag)]  &&  g_level >= level)) {
+	if (dbg_predicate(flag, level)) {
 	    va_list ap;
 	    char *msg;
 
@@ -49,6 +53,8 @@ namespace dbg {
 #define DQUAD(LVL,FMT,...) dbg::print(dbg::flag::quadrant, (LVL), __FILE__, __FUNCTION__, __LINE__, FMT, ## __VA_ARGS__)
 #define DSECTOR(LVL,FMT,...) dbg::print(dbg::flag::sector, (LVL), __FILE__, __FUNCTION__, __LINE__, FMT, ## __VA_ARGS__)
 #define DINIT(LVL,FMT,...) dbg::print(dbg::flag::init, (LVL), __FILE__, __FUNCTION__, __LINE__, FMT, ## __VA_ARGS__)
+#define DGAME(LVL,FMT,...) dbg::print(dbg::flag::game, (LVL), __FILE__, __FUNCTION__, __LINE__, FMT, ## __VA_ARGS__)
+#define DEXEC(LVL,FLG,...) do { if (dbg_predicate((FLG),(LVL))) { __VA_ARGS__ }}while (false)
 }
 
 namespace std {
@@ -233,9 +239,7 @@ namespace std {
 
     Quadrant::Quadrant() {
 
-	//cerr << "INITIALIZING QUADRANT " << g_row_ << "," << g_col_ << endl;
-
-	// Fill in the blanks
+	DQUAD(2, "INITIALIZING QUADRANT %d,%d", g_row_, g_col_);
 
 	repopulate();
     }
@@ -249,7 +253,7 @@ namespace std {
 	    }
 	}
 
-	cerr << "POPULATING QUADRANT " << g_row_ << "," << g_col_ << endl;
+	DQUAD(2, "POPULATING QUADRANT %d,%d", g_row_, g_col_);
 
 	//select # klingons for this quadrant, and add to total
 	int R1 = randrange(100);
@@ -262,13 +266,13 @@ namespace std {
 	} else {
 	    num_klingons_ = 0;
 	}
-	cerr << num_klingons_ << " klingons" << endl;
+	DQUAD(2, "%d klingons", num_klingons_);
 
 	int r, c;
 	for (int i = 0; i < num_klingons_; i++) {
 	    tie(r,c) = randomemptypos();
 	    sectors_[r][c] = make_unique<Klingon>(r,c);
-	    cerr << "new klingon: sectors_[" << r << "][" << c << "]" << " = " << sectors_[r][c]->id() << endl;
+	    DQUAD(2, "new klingon: sectors_[%d][%d] = %d", r, c,sectors_[r][c]->id());
 	}
                     
 	//select # starbases for this quadrant, and add to total
@@ -276,21 +280,22 @@ namespace std {
 	for (int i = 0; i < num_starbases_; i++) {
 	    tie(r,c) = randomemptypos();
 	    sectors_[r][c] = make_unique<Starbase>(r,c);
-	    cerr << "new Starbase: sectors_[" << r << "][" << c << "]" << " = " << sectors_[r][c]->id() << endl;
+	    DQUAD(2, "new Starbase: sectors_[%d][%d] = %d", r, c,sectors_[r][c]->id());
 	}
-	cerr << num_starbases_ << " starbases" << endl;
+	DQUAD(2, "%d starbases", num_starbases_);
 
 	//select # of stars for this quadrant
 	num_stars_ = 1 + randrange(8);
 	for (int i = 0; i < num_stars_; i++) {
 	    tie(r,c) = randomemptypos();
 	    sectors_[r][c] = make_unique<Star>(r,c);
-	    cerr << "new Star: sectors_[" << r << "][" << c << "]" << " = " << sectors_[r][c]->id() << endl;
+	    DQUAD(2, "new Star: sectors_[%d][%d] = %d", r, c,sectors_[r][c]->id());
 	}
-	cerr << num_stars_ << " stars" << endl;
+	DQUAD(2, "%d stars", num_stars_);
     }
 
     void Quadrant::dump() {
+	DEXEC(2, dbg::flag::quadrant,
 	cerr << "QUADRANT " << g_row_ << "," << g_col_
 	     << " now looks like this:" << endl;
 	for (int row = 0; row < 8; row++) {
@@ -299,7 +304,7 @@ namespace std {
 		cerr << " " << setw(4) << (int)sectors_[row][col]->id() << " |";
 	    }
 	    cerr << endl;
-	}
+	});
     }
     
     pair<int,int> Quadrant::emptypos() {
@@ -360,9 +365,9 @@ namespace std {
 	    }
 	    int erow, ecol;
 	    tie(erow, ecol) = nearestempty(sec.pos());
-	    cerr << "landed on something - moving to nearby empty position" << endl;
+	    DQUAD(1, "landed on something - moving to nearby empty position");
 	    sec.pos() = SectorPos(erow, ecol);
-	    cout << "Placing STARSHIP at sector position " << sec.row() << "," << sec.col() << endl;
+	    DQUAD(1, "Placing STARSHIP at sector position %d,%d", sec.row(), sec.col());
 	    for (int row = 0; row < 8; row++) {
 		for (int col = 0; col < 8; col++) {
 		    Sector& s = *sectors_[row][col];
@@ -392,9 +397,8 @@ namespace std {
 	default:
 	    break;
 	}
-	cout << "setting quadrant(" << g_row_ << "," << g_col_ 
-	     << ").sectors_[" << sec.row() << "][" << sec.col()
-	     << "] from id(" << cur.id() << ") to id(" << sec.id() << ")" << endl;
+	DSECTOR(2, "setting quadrant(%d,%d).sectors_[%d][%d] from id %d to id %d",
+		g_row_, g_col_, sec.row(), sec.col(), cur.id(), sec.id());
 	sectors_[sec.row()][sec.col()] = make_unique<Sector>(sec);
     }
 		    
@@ -405,7 +409,7 @@ namespace std {
 	//  if the computer isn't damaged.
     public:    
 	Galaxy(): total_klingons_(0), remaining_klingons_(0), remaining_starbases_(0) {
-	    cerr << "INITIALIZING GALAXY [" << sizeof(galaxy_) << "," << sizeof(galaxy_[0]) << "]" << endl;
+	    DGALAXY(1, "INITIALIZING GALAXY");
 	    for (int row = 0; row < 8; row++) {
 		for (int col = 0; col < 8; col++) {
 		    galaxy_[row][col].setpos(row, col);
@@ -414,11 +418,11 @@ namespace std {
 		}
 	    }
 
-	    //cerr << "allocating starbases and klingons" << endl;
+	    DGALAXY(2, "allocating starbases and klingons");
 	    // initialize the galaxy
 	    // have to have at least 1 each of klingons and starbases
 	    while (remaining_starbases_ <= 0 || remaining_klingons_ <= 0) {
-		//cerr << "sb: " << remaining_starbases_ << " kl: " << remaining_klingons_ << endl;
+		DGALAXY(2, "sb: %d kl: %d", remaining_starbases_, remaining_klingons_);
 		int row = randrange(8);
 		int col = randrange(8);
 
@@ -433,7 +437,7 @@ namespace std {
 
 	    // save the original total number of klingons for the efficiency rating at the end of the game
 	    total_klingons_ = remaining_klingons_;
-	    //cerr << "Done." << endl;
+	    DGALAXY(2, "Done.");
 	}
 	virtual ~Galaxy() {
 	}
@@ -619,15 +623,15 @@ namespace std {
 	    return;
 	}
 
-	cout << "quadrant(" << q_row() << "," << q_col() << ")" << endl;
-	cout << "ship sector(" << s_row() << "," << s_col() << ")" << endl;
+	DGAME(1, "quadrant(%d,%d)", q_row(), q_col());
+	DGAME(1, "ship sector(%d,%d)", s_row(), s_col());
 	Quadrant& quadrant = Galaxy::quadrant(q_row(),q_col());
 		
 	// XXX debug
 	for (int r = 0; r < 8; r++) {
 	    for (int c = 0; c < 8; c++) {
 		if (quadrant.sector(r,c).type() == Sector::type::STARSHIP) {
-		    cout << "starship at " << r << "," << c << endl;
+		    DGAME(1, "starship at %d,%d", r, c);
 		}
 	    }
 	}
@@ -1288,13 +1292,12 @@ namespace std {
         
 	    cout << "ENTERING QUADRANT " << enterprise.q_row() << "," << enterprise.q_col() << endl;
 	    Quadrant& q = Galaxy::quadrant(enterprise.q_row(),enterprise.q_col());
-	    DVERB(1, "enterprise at secpos %d, %d\n", (int)enterprise.s_row(), (int)enterprise.s_col());
-	    //	    cerr << "enterprise at secpos " << enterprise.s_row() << "," << enterprise.s_col() << endl;
+	    DGAME(1, "enterprise at secpos %d, %d\n", (int)enterprise.s_row(), (int)enterprise.s_col());
 	    auto s = Starship(enterprise.s_row(), enterprise.s_col());
 	    enterprise.pos(s.row(), s.col());
 	    q.setsector(s, true);
 	    auto qs = q.sector(s.row(), s.col());
-	    cerr << "q's sector " << s.row() << "," << s.col() << " is " << qs.glyph() << " (" << qs.id() << ")" << endl;
+	    DGAME(2, "q's sector %d,%d is %s (%d)", s.row(), s.col(), qs.glyph().c_str(), qs.id());
 	    if (q.num_klingons() > 0 && enterprise.shields()<=200) {
 		cout << "COMBAT AREA      CONDITION RED" << endl;
 		cout << "   SHIELDS DANGEROUSLY LOW" << endl;
@@ -1377,6 +1380,7 @@ namespace std {
 int main(int argc, char **argv) {
     try {
 	//	DBGENABLE(verbose);
+	DBGENABLE(game);
 	dbg::g_level = 1;
 	return std::my_main(argc, argv);
     } catch (std::exception& e) {
