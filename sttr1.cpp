@@ -1010,7 +1010,10 @@ namespace std {
 		    cout << "ENERGY AVAILABLE =" << (energy_ + shields_) << "   NUMBER OF UNITS TO SHIELDS:?";
 		    int X = 0;
 		    try {
-			cin >> X;
+			string str;
+			getline(cin, str);
+			stringstream conv(str);
+			conv >> X;
 		    } catch (exception *e) {
 			X = -1;
 		    }
@@ -1033,9 +1036,12 @@ namespace std {
 
 	while (true) {
 	    cout << "COMPUTER ACTIVE AND AWAITING COMMAND: ";
-	    int A;
+	    int A = -1;
 	    try {
-		cin >> A;
+		string str;
+		getline(cin, str);
+		stringstream conv(str);
+		conv >> A;
 	    } catch (exception *e) {
 		A = -1;
 	    }
@@ -1150,7 +1156,7 @@ namespace std {
     void printDistanceAndDirection(int ship_r, int ship_c, int targ_r, int targ_c) {
 	int xdelta, ydelta;
 	tie(xdelta,ydelta) = printDir(ship_r, ship_c, targ_r, targ_c);
-	cout << "DISTANCE =" << sqrt(pow(xdelta,2)+pow(ydelta,2)) << endl;
+	cout << "DISTANCE  =" << sqrt(pow(xdelta,2)+pow(ydelta,2)) << endl;
     }
     
     // ===================================
@@ -1167,8 +1173,9 @@ namespace std {
 	    string A = "";
 	    do {
 	        cout << "DO YOU WANT TO USE THE CALCULATOR? ";
+		cin.clear();
 		try {
-		    cin >> A;
+		    getline(cin, A);
 		} catch (exception *e) {
 		    A = "N";
 		}
@@ -1184,13 +1191,13 @@ namespace std {
 	    int sr=0, sc=0, tr=0, tc=0;
 	    try {
 		string str;
-	        cin >> str;
+	        getline(cin, str);
 		stringstream conv(str);
 		conv >> sr >> sc >> tr >> tc;
+		printDistanceAndDirection(sr, sc, tr, tc);
 	    } catch (exception *e) {
 	        cout << "INPUT GARBLED" << endl;
 	    }
-	    printDistanceAndDirection(sr, sc, tr, tc);
 	}
     }
     
@@ -1265,7 +1272,7 @@ namespace std {
 	cout << "\n\n\nDO YOU WANT INSTRUCTIONS (THEY'RE LONG!)? ";
 	string answer = "";
 	try {
-	    cin >> answer;
+	    getline(cin, answer);
 	} catch (exception& e) {
 	    answer = "";
 	}
@@ -1335,9 +1342,9 @@ namespace std {
 		    RESTART=true;
 		} else {
 		    cout << "COMMAND:? ";
-		    string cmd { "" };
+		    string cmd = "";
 		    try {
-			cin >> cmd;
+			getline(cin, cmd);
 		    } catch (exception& e) {
 			cmd = "";
 		    }
