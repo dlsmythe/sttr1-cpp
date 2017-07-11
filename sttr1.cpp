@@ -1455,7 +1455,7 @@ namespace std {
 
 int main(int argc, char **argv) {
     try {
-	//DBGENABLE(verbose);
+	DBGENABLE(verbose);
 	//DBGENABLE(game);
 	dbg::g_level = 1;
 	return std::my_main(argc, argv);
