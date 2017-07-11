@@ -1145,72 +1145,73 @@ namespace std {
     }
 
     // ===================================
+    // Determining direction:
+    // The direction is derivable from the angle of the right-triangle formed by
+    // the X and Y axes and the vector to the target.  The only question is the signs
+    // of the components.  So, determine which quadrant the ship and target are in,
+    // determine the direction based on quadrant 0:
+    //   1 | 0
+    //  -------
+    //   2 | 3
+    // then convert the result based on the actual quadrant.
+    // (SOH CAH TOA)
+    // Q0: angle is atan(ydelta/xdelta) [call it Q0a]
+    // Q1: angle is Q0a + 2*(PI/2 - Q0a)
+    // Q2: angle is Q0a + PI
+    // Q3: angle is Q1a + PI
 
-    // XXX - double-check this.  I may have fat-fingered some of the logic converting from python...
-    // NB: might be a good test-case for the "test" framework
-    
-    pair<int,int> printDir(int ship_r, int ship_c, int targ_r, int targ_c) {
-	int xdelta, ydelta;
-	xdelta=targ_c-ship_c;
-	ydelta=ship_r-targ_r;
-	if (xdelta>=0) {
-	    if (ydelta<0) {
-		if (abs(ydelta) < abs(xdelta)) {
-		    cout << "DIRECTION =" << (ship_r+(((abs(xdelta)-abs(ydelta))+abs(xdelta))/abs(xdelta))) << endl;
-		} else {
-		    cout << "DIRECTION =" << (ship_r+(abs(xdelta)/abs(ydelta))) << endl;
-		}
-		return pair<int,int>(xdelta,ydelta);
-	    }
-	    if (xdelta<=0) {
-		if (ydelta==0) {
-		    ship_r=5;
-		    if (abs(ydelta) <= abs(xdelta)) {
-			cout << "DIRECTION =" << (ship_r+(abs(ydelta)/abs(xdelta))) << endl;
-		    } else {
-			cout << "DIRECTION =" << (ship_r+(((abs(ydelta)-abs(xdelta))+abs(ydelta))/abs(ydelta))) << endl;
-		    }
-		    return pair<int,int>(xdelta,ydelta);
-		}
-	        ship_r=1;
-	        if (abs(ydelta) > abs(xdelta)) {
-		    cout << "DIRECTION =" << (ship_r+(((abs(ydelta)-abs(xdelta))+abs(ydelta))/abs(ydelta))) << endl;
-		    return pair<int,int>(xdelta,ydelta);
-		}
-	    }
-	    cout << "DIRECTION =" << (ship_r+(abs(ydelta)/abs(xdelta))) << endl;
-	    return pair<int,int>(xdelta,ydelta);
-	}
-	if (ydelta>0) {
-	    ship_r=3;
-	    if (abs(ydelta) >= abs(xdelta)) {
-		cout << "DIRECTION =" << (ship_r+(abs(xdelta)/abs(ydelta))) << endl;
-	    } else {
-		cout << "DIRECTION =" << (ship_r+(((abs(xdelta)-abs(ydelta))+abs(xdelta))/abs(xdelta))) << endl;
-	    }
-	    return pair<int,int>(xdelta,ydelta);
-	}
-	if (xdelta != 0) {
-	    ship_r=5;
-	    if (abs(ydelta) <= abs(xdelta)) {
-		cout << "DIRECTION =" << (ship_r+(abs(ydelta)/abs(xdelta))) << endl;
-	    } else {
-		cout << "DIRECTION =" << (ship_r+(((abs(ydelta)-abs(xdelta))+abs(ydelta))/abs(ydelta))) << endl;
-	    }
+    const float EPSILON = .0001;
+    const float PI = 3.1415926535897932;
+    float dirToTarget(int ship_r, int ship_c, int targ_r, int targ_c) {
+	DVERB(1, "PI/2: %5.3f PI/4: %5.3f", PI/2, PI/4);
+	DVERB(1, "(%d,%d)->(%d,%d)", ship_r, ship_c, targ_r, targ_c);
+	float xdelta=targ_c-ship_c;
+	float ydelta=targ_r-ship_r;
+	float dir;
+	DVERB(1, "xdelta: %6.3f  ydelta: %6.3f", xdelta, ydelta);
+	if (abs(xdelta) < EPSILON) {
+	    dir = targ_r > ship_r ? 3 : 7;
+	    DVERB(1, "%s", targ_r > ship_r ? "SOUTH" : "NORTH");
+	} else if (abs(ydelta) < EPSILON) {
+	    dir = targ_c > ship_c ? 1 : 5;
+	    DVERB(1, "%s", targ_c > ship_c ? "EAST" : "WEST");
 	} else {
-	    ship_r=7;
-	    if (abs(ydelta) < abs(xdelta)) {
-		cout << "DIRECTION =" << (ship_r+(((abs(xdelta)-abs(ydelta))+abs(xdelta))/abs(xdelta))) << endl;
+	    float angle, Q0a = atan(abs(ydelta)/abs(xdelta));
+	    float Q1a = Q0a + 2*((PI/2) - Q0a);
+	    DVERB(1, "y/x: %6.3f Q0a: %6.3f Q1a: %6.3f", abs(ydelta)/abs(xdelta), Q0a, Q1a);
+	    if (xdelta > 0) {
+		if (ydelta > 0) {
+		    // Quadrant 3
+		    angle = Q1a + PI;
+		    DVERB(1, "Q3: angle %6.3f", angle);
+		} else {
+		    // Quadrant 0
+		    angle = Q0a;
+		    DVERB(1, "Q0: angle %6.3f", angle);
+		}
 	    } else {
-		cout << "DIRECTION =" << (ship_r+(abs(xdelta)/abs(ydelta))) << endl;
+		if (ydelta > 0) {
+		    // Quadrant 2
+		    angle = Q0a + PI;
+		    DVERB(1, "Q2: angle %6.3f", angle);
+		} else {
+		    // Quadrant 1
+		    angle = Q1a;
+		    DVERB(1, "Q1: angle %6.3f", angle);
+		}
 	    }
+	    dir = 1 + 8 * (angle / (2*PI));
+	    DVERB(1, "dir %6.3f", dir);
 	}
-	return pair<int,int>(xdelta,ydelta);
+	return dir;
     }
-
+    
     void printDistanceAndDirection(int ship_r, int ship_c, int targ_r, int targ_c) {
-	int xdelta, ydelta;
-	tie(xdelta,ydelta) = printDir(ship_r, ship_c, targ_r, targ_c);
+	float dir = dirToTarget(ship_r, ship_c, targ_r, targ_c);
+	cout << "DIRECTION =" << dir << endl;
+
+	float xdelta=targ_c-ship_c;
+	float ydelta=targ_r-ship_r;
 	cout << "DISTANCE  =" << sqrt(pow(xdelta,2)+pow(ydelta,2)) << endl;
     }
     
@@ -1227,6 +1228,7 @@ namespace std {
 	while (true) {
 	    string A = "";
 	    do {
+		// NB: why ask? Could we just default to showing data to all Klingons in this Quadrant?
 	        cout << "DO YOU WANT TO USE THE CALCULATOR? ";
 		cin.clear();
 		try {
@@ -1453,8 +1455,8 @@ namespace std {
 
 int main(int argc, char **argv) {
     try {
-	//	DBGENABLE(verbose);
-	DBGENABLE(game);
+	//DBGENABLE(verbose);
+	//DBGENABLE(game);
 	dbg::g_level = 1;
 	return std::my_main(argc, argv);
     } catch (std::exception& e) {
