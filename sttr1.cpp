@@ -1157,14 +1157,15 @@ namespace std {
 	cout << "     0     1     2     3     4     5     6     7" << endl;
 	cout << "   ----- ----- ----- ----- ----- ----- ----- -----" << endl;
 	for (int I=0; I<8; I++) {
-	    cout << setw(1) << I << " ";
+	    cout << " " << setw(1) << I << " ";
 	    for (int J=0; J<8; J++) {
-		cout << setw(1) << computer_galaxy_scan_[I][J].ks
+		cout << " "
+		     << setw(1) << computer_galaxy_scan_[I][J].ks
 		     << setw(1) << computer_galaxy_scan_[I][J].sbs
 		     << setw(1) << computer_galaxy_scan_[I][J].stars
-		     << " " << endl;
-		cout << endl << "   ----- ----- ----- ----- ----- ----- ----- -----" << endl;
+		     << "  ";
 	    }
+	    cout << endl << "   ----- ----- ----- ----- ----- ----- ----- -----" << endl;
 	}
     }
 
