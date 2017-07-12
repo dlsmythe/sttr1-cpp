@@ -488,6 +488,12 @@ namespace std {
 	    }
 	    return singleton->remaining_klingons_;
 	}
+	static void decr_remaining_klingons() {
+	    if (nullptr == singleton) {
+		singleton = unique_ptr<Galaxy>(new Galaxy());
+	    }
+	    --singleton->remaining_klingons_;
+	}
 	static int remaining_starbases() {
 	    if (nullptr == singleton) {
 		singleton = unique_ptr<Galaxy>(new Galaxy());
@@ -950,46 +956,68 @@ namespace std {
     }
     
     void Ship::firePhasers(game_session *gamestate) {
+	auto& quadrant = Galaxy::quadrant(q_row(),q_col());
+	if (quadrant.num_klingons() <= 0) {
+	    cout << "SHORT RANGE SENSORS REPORT NO KLINGONS IN THIS QUANDRANT" << endl;
+	    return;
+	}
+	if (curdamage_["phasers"] < 0) {
+	    cout << "PHASER CONTROL IS DISABLED" << endl;
+	    return;
+	}
+	if (curdamage_["computer"] < 0) {
+	    cout << " COMPUTER FAILURE HAMPERS ACCURACY" << endl;
+	}
+	int X = 0;
+	while (energy_ > X && X == 0) {
+	    cout << "PHASERS LOCKED ON TARGET.  ENERGY AVAILABLE=" << energy_ << endl;
+	    cout << "NUMBER OF UNITS TO FIRE:";
+	    try {
+		string str;
+		getline(cin, str);
+		stringstream conv(str);
+		conv >> X;
+	    } catch (exception *e) {
+		cout << "INPUT GARBLED" << endl;
+	        X = 0;
+	    }
+	    if (X < 0) {
+	        return;
+	    }
+	    if (X > energy_) {
+		cout << "INSUFFICIENT ENERGY TO SATISFY REQUEST." << endl;
+	    }
+	}
+	energy_ -= X;
+	checkForDamage(gamestate);
+	if (gamestate->destroyed()) {
+	    return;
+	}
+	if (curdamage_["computer"] < 0) {
+	    X *= .5 + randrange(100)/100.;  //"computer failure result"	
+	}
+	for (auto klingon : quadrant.klingons()) {
+	    if (klingon->shields() > 0) {
+	        int H=(X/quadrant.num_klingons()/pos_.distance_to(klingon->pos()))*(2*(randrange(100)/100.));
+	        klingon->shields(klingon->shields() - H);
+	        cout << setw(4) << H << " UNIT HIT ON KLINGON AT SECTOR "
+		     << klingon->row() << "," << klingon->col()
+		     << "   (" << setw(3) << klingon->shields() << " LEFT)" << endl;
+	        if (klingon->shields() < 0) {
+	            cout << "KLINGON AT SECTOR " << klingon->row() << "," << klingon->col() << " DESTROYED ****" << endl;
+	            quadrant.setsector(Sector(klingon->row(), klingon->col()));
+	            Galaxy::decr_remaining_klingons();
+	            if (Galaxy::remaining_klingons() <= 0) {
+                        return;
+		    }
+		}
+	    }
+	}
+	if (energy_ < 0) {
+	    cout << "OUT OF ENERGY" << endl;
+	    gamestate->destroyed(true);
+	}
     }
-	//     def firePhasers(self, gamestate):
-	//         quadrant = Galaxy::galaxy.quadrant(q_row(),q_col())
-	//         if quadrant.num_klingons <= 0:
-	//             print "SHORT RANGE SENSORS REPORT NO KLINGONS IN THIS QUANDRANT"
-	//             return
-	//         if self.damage("phasers") < 0:
-	//             print "PHASER CONTROL IS DISABLED"
-	//             return
-	//         if self.damage("computer") < 0:
-	//             print " COMPUTER FAILURE HAMPERS ACCURACY"
-	//         X = 0
-	//         while self.energy > X and X == 0:
-	//             print "PHASERS LOCKED ON TARGET.  ENERGY AVAILABLE=%d" % (self.energy)
-	//             print "NUMBER OF UNITS TO FIRE:";
-	//             try:
-	//                 X = input("? ")
-	//             except:
-	//                 X = -1
-	//             if X <= 0:
-	//                 return
-	//         self.energy -= X
-	//         self.checkForDamage(gamestate)
-	//         if gamestate.DESTROYED:
-	//             return
-	//         if self.damage("computer") < 0:
-	//             X *= random()  #"computer failure result"
-	//         for klingon in quadrant.klingons():
-	//             if klingon.shields_ > 0:
-	//                 H=(X/quadrant.num_klingons/self.pos.distance_to(klingon.pos))*(2*random())
-	//                 klingon.shields -= H
-	//                 print "%4d UNIT HIT ON KLINGON AT SECTOR %d,%d   (%3d LEFT)" % (H, klingon.pos.row, klingon.pos.col, klingon.shields)
-	//                 if klingon.shields<0:
-	//                     print "KLINGON AT SECTOR %d,%d DESTROYED ****" % (klingon.pos.row, klingon.pos.col)
-	//                     quadrant.setsector(Sector(klingon.pos.row, klingon.pos.col))
-	//                     Galaxy::galaxy.remaining_klingons -= 1
-	//                     if Galaxy::galaxy.remaining_klingons <= 0:                    return
-	//         if self.energy<0:
-	//             print "OUT OF ENERGY"
-	//             gamestate.DESTROYED=True
 
     void Ship::firePhotons(game_session *gamestate) {
     }
@@ -1164,59 +1192,38 @@ namespace std {
     // Q2: angle is Q0a + PI
     // Q3: angle is Q1a + PI
 
-    const float EPSILON = .0001;
+    //const float EPSILON = .0001;
     const float PI = 3.1415926535897932;
-    float dirToTarget(int ship_r, int ship_c, int targ_r, int targ_c) {
-	DVERB(1, "PI/2: %5.3f PI/4: %5.3f", PI/2, PI/4);
-	DVERB(1, "(%d,%d)->(%d,%d)", ship_r, ship_c, targ_r, targ_c);
-	float xdelta=targ_c-ship_c;
-	float ydelta=targ_r-ship_r;
-	float dir;
-	DVERB(1, "xdelta: %6.3f  ydelta: %6.3f", xdelta, ydelta);
-	if (abs(xdelta) < EPSILON) {
-	    dir = targ_r > ship_r ? 7 : 3;
-	    DVERB(1, "%s", targ_r > ship_r ? "SOUTH" : "NORTH");
-	} else if (abs(ydelta) < EPSILON) {
-	    dir = targ_c > ship_c ? 1 : 5;
-	    DVERB(1, "%s", targ_c > ship_c ? "EAST" : "WEST");
-	} else {
-	    float angle, Q0a = atan(abs(ydelta)/abs(xdelta));
-	    float Q1a = Q0a + 2*((PI/2) - Q0a);
-	    DVERB(1, "y/x: %6.3f Q0a: %6.3f Q1a: %6.3f", abs(ydelta)/abs(xdelta), Q0a, Q1a);
-	    if (xdelta > 0) {
-		if (ydelta > 0) {
-		    // Quadrant 3
-		    angle = Q1a + PI;
-		    DVERB(1, "Q3: angle %6.3f", angle);
-		} else {
-		    // Quadrant 0
-		    angle = Q0a;
-		    DVERB(1, "Q0: angle %6.3f", angle);
-		}
-	    } else {
-		if (ydelta > 0) {
-		    // Quadrant 2
-		    angle = Q0a + PI;
-		    DVERB(1, "Q2: angle %6.3f", angle);
-		} else {
-		    // Quadrant 1
-		    angle = Q1a;
-		    DVERB(1, "Q1: angle %6.3f", angle);
-		}
-	    }
-	    dir = 1 + 8 * (angle / (2*PI));
-	    DVERB(1, "dir %6.3f", dir);
-	}
-	return dir;
-    }
-    
     void printDistanceAndDirection(int ship_r, int ship_c, int targ_r, int targ_c) {
-	float dir = dirToTarget(ship_r, ship_c, targ_r, targ_c);
-	cout << "DIRECTION =" << dir << endl;
-
 	float xdelta=targ_c-ship_c;
 	float ydelta=targ_r-ship_r;
-	cout << "DISTANCE  =" << sqrt(pow(xdelta,2)+pow(ydelta,2)) << endl;
+	float dist = sqrt(pow(xdelta,2)+pow(ydelta,2));
+	float angle, Q0a = asin(abs(ydelta)/dist); // ship and target are in different sectors, so dist will never be zero.
+	if (xdelta > 0) {
+	    if (ydelta > 0) {
+		// Quadrant 3
+		angle = 2*PI - Q0a;
+		DVERB(1, "Q3: angle %6.3f", angle);
+	    } else {
+		// Quadrant 0
+		angle = Q0a;
+		DVERB(1, "Q0: angle %6.3f", angle);
+	    }
+	} else {
+	    if (ydelta > 0) {
+		// Quadrant 2
+		angle = PI + Q0a;
+		DVERB(1, "Q2: angle %6.3f", angle);
+	    } else {
+		// Quadrant 1
+		angle = PI - Q0a;
+		DVERB(1, "Q1: angle %6.3f", angle);
+	    }
+	}
+	float dir = 1 + 8 * (angle / (2*PI));
+    
+	cout << "DIRECTION =" << dir << endl;
+	cout << "DISTANCE  =" << dist << endl;
     }
     
     // ===================================
