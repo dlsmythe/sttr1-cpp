@@ -565,10 +565,11 @@ namespace std {
 
 	enum class cond {GREEN, YELLOW, RED };
 
+	struct cgs_s { int ks; int sbs; int stars; };
+	
 	Ship(): DOCKED(false), photons(MAXPHOTONS), energy_(MAXENERGY), shields_(0), condition(Ship::cond::GREEN) {
 
 	    clear_damage();
-	    //computer_galaxy_scan = Galaxy();
 
 	    //X and Y coordinates of the current quadrant, 0..7 each
 	    q_row_ = randrange(8);
@@ -605,7 +606,7 @@ namespace std {
 	SectorPos pos_ = SectorPos(0,0);
 	int q_row_, q_col_; // ship's quadrant (r,c)
 	enum Ship::cond condition;
-	//Galaxy computer_galaxy_scan;
+	struct cgs_s computer_galaxy_scan_[8][8] {};
 
 	void clear_damage(void);
 	int damage(string sysname) { return curdamage_[sysname]; }
@@ -727,7 +728,9 @@ namespace std {
 		    if (I>=0 && I<=7 && J>=0 && J<=7) {
 			Quadrant& quadrant = Galaxy::quadrant(I,J);
 			if (damage("computer")>=0) {  // cumulative galaxy map is functioning
-			    //self.computer_galaxy_scan.quadrants[I,J] = quadrant;
+			    computer_galaxy_scan_[I][J].ks = quadrant.num_klingons();
+			    computer_galaxy_scan_[I][J].sbs = quadrant.num_starbases();
+			    computer_galaxy_scan_[I][J].stars = quadrant.num_stars();
 			}
 			cout << " "
 			     << setw(1) << quadrant.num_klingons()
@@ -1153,18 +1156,16 @@ namespace std {
 	cout << "COMPUTER RECORD OF GALAXY FOR QUADRANT " << q_row() << "," << q_col() << endl;
 	cout << "     0     1     2     3     4     5     6     7" << endl;
 	cout << "   ----- ----- ----- ----- ----- ----- ----- -----" << endl;
-#if 0
 	for (int I=0; I<8; I++) {
 	    cout << setw(1) << I << " ";
 	    for (int J=0; J<8; J++) {
-		auto q = computer_galaxy_scan_.quadrant(I,J);
-		cout << setw(1) << q.num_klingons<< setw(1) << q.num_starbases<< setw(1) << q.num_stars;
+		cout << setw(1) << computer_galaxy_scan_[I][J].ks
+		     << setw(1) << computer_galaxy_scan_[I][J].sbs
+		     << setw(1) << computer_galaxy_scan_[I][J].stars
+		     << " " << endl;
+		cout << endl << "   ----- ----- ----- ----- ----- ----- ----- -----" << endl;
 	    }
-	    cout << endl << "   ----- ----- ----- ----- ----- ----- ----- -----" << endl;
 	}
-#else
-	cout << " ************ disabled (tbd) ************ " << endl;
-#endif
     }
 
     void Ship::printStatusReport(game_session *gamestate) {
