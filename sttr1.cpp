@@ -122,19 +122,21 @@ namespace std {
 		};
 
 	Sector() = delete;
-	Sector(int row, int col, Sector::type type = Sector::type::SPACE): pos_(SectorPos(row,col)), type_(type), id_(ID++) {
+	Sector(int row, int col, Sector::type type = Sector::type::SPACE, string glyph = "   "):
+	    pos_(SectorPos(row,col)), type_(type), id_(ID++), glyph_(glyph) {
 	    DSECTOR(2, "new space %d at sector %d,%d", id(), row, col);
 	}
-	Sector(const Sector& rhs): pos_(rhs.pos_), type_(rhs.type_), id_(ID++) {
+	Sector(const Sector& rhs): pos_(rhs.pos_), type_(rhs.type_), id_(ID++), glyph_(rhs.glyph_) {
 	    DSECTOR(2, "copy-constructing sector with id %d to new one with id %d", rhs.id_, id_);
 	}
-	Sector(const Sector&& rhs): pos_(rhs.pos_), type_(rhs.type_), id_(ID++) {
+	Sector(const Sector&& rhs): pos_(rhs.pos_), type_(rhs.type_), id_(ID++), glyph_(rhs.glyph_) {
 	    DSECTOR(2, "move-constructing sector with id %d to new one with id %d", rhs.id_, id_);
 	}
 	Sector& operator=(const Sector& p) {
 	    id_ = ID++;
 	    pos_ = p.pos_;
 	    type_ = p.type_;
+	    glyph_ = p.glyph_;
 	    DSECTOR(2, "copy-assigning sector with id %d to new one with id %d", p.id_, id_);
 	    return *this;
 	}
@@ -142,13 +144,14 @@ namespace std {
 	    id_ = ID++;
 	    pos_ = p.pos_;
 	    type_ = p.type_;
+	    glyph_ = p.glyph_;
 	    DSECTOR(2, "move-assigning sector with id %d to new one with id %d", p.id_, id_);
 	    return *this;
 	}
 	virtual ~Sector() {
 	    DSECTOR(2, "destructing sector with id %d", id_);
 	}
-	virtual string glyph() { return "   "; }
+	virtual string glyph() { return glyph_; }
 	Sector::type type() { return type_; }
 	int row() { return pos_.row(); }
 	int col() { return pos_.col(); }
@@ -161,19 +164,19 @@ namespace std {
 	SectorPos pos_;
 	enum type type_;
 	int id_;
+	string glyph_ = "   ";
     };
     int Sector::ID = 0;
     
     class Klingon : public Sector {
     public:
-	Klingon(int row, int col): Sector(row,col,Sector::type::KLINGON) {
+	Klingon(int row, int col): Sector(row,col,Sector::type::KLINGON, "+++") {
 	    DSECTOR(2, "new Klingon %d at sector %d,%d", id(), row, col);
 	}
-	Klingon(Klingon& rhs): Sector(rhs.row(),rhs.col(),Sector::type::KLINGON) {
+	Klingon(Klingon& rhs): Sector(rhs.row(),rhs.col(),Sector::type::KLINGON, "+++") {
 	    shields_ = rhs.shields_;
 	    DSECTOR(2, "copied Klingon %d at sector %d,%d", id(), row(), col());
 	}
-	virtual string glyph() override { return "+++"; }
 	virtual int shields() override { return shields_; }
 	virtual void shields(int val) override { shields_ = val; }
     private:
@@ -182,26 +185,23 @@ namespace std {
 	
     class Starship : public Sector {
     public:
-	Starship(int row, int col): Sector(row,col,Sector::type::STARSHIP) {
+	Starship(int row, int col): Sector(row,col,Sector::type::STARSHIP, "<*>") {
 	    DSECTOR(2, "new Starship %d at sector %d,%d", id(), row, col);
 	}
-	virtual string glyph() override { return "<*>"; }
     };
 	
     class Starbase : public Sector {
     public:
-	Starbase(int row, int col): Sector(row,col,Sector::type::STARBASE) {
+	Starbase(int row, int col): Sector(row,col,Sector::type::STARBASE, ">!<") {
 	    DSECTOR(2, "new Starbase %d at sector %d,%d", id(), row, col);
 	}
-	virtual string glyph() override { return ">!<"; }
     };
 	
     class Star : public Sector {
     public:
-	Star(int row, int col): Sector(row,col,Sector::type::STAR) {
+	Star(int row, int col): Sector(row,col,Sector::type::STAR, " * ") {
 	    DSECTOR(2, "new Star %d at sector %d,%d", id(), row, col);
 	}
-	virtual string glyph() override { return " * "; }
     };
 
     class Quadrant {
@@ -360,6 +360,8 @@ namespace std {
 
     Sector& Quadrant::sector(int row, int col) {
 	if (row >= 0 && row < 8 && col >= 0 && col < 8) {
+	    DQUAD(1, "q(%d,%d)[%d][%d]: id %d type: %d [%s]", g_row_, g_col_, row, col,
+		  sectors_[row][col]->id(), sectors_[row][col]->type(), sectors_[row][col]->glyph().c_str());
 	    return *sectors_[row][col];
 	}
 	throw out_of_range("sector addr out of range");
@@ -640,12 +642,12 @@ namespace std {
 	}
 
 	// see if we're docked
+	DGAME(1, "checking whether docked...");
 	DOCKED=false;
 	for (int I = s_row()-1; I <= s_row()+1 && !DOCKED; I++) {
 	    for (int J = s_col()-1; J <= s_col()+1 && !DOCKED; J++) {
 		if (I>=0 && I<=7 && J>=0 && J<=7) {
-		    auto s = quadrant.sector(s_row(), s_col());
-		    if (s.type() == Sector::type::STARBASE) {
+		    if (quadrant.sector(s_row(), s_col()).type() == Sector::type::STARBASE) {
 			energy_ = MAXENERGY;
 			photons = MAXPHOTONS;
 			clear_damage();
@@ -667,6 +669,7 @@ namespace std {
 	else
 	    condition=cond::GREEN;
 
+	DGAME(1, "printing quadrant sectors...");
 	//printQuadrant
 	cout << "---------------------------------------" << endl;
 	for (int col = 0; col < 8; col++) {
@@ -702,6 +705,7 @@ namespace std {
 	}
 	cout << "        SHIELDS         	" << shields_ << endl;
 	cout << "---------------------------------------" << endl;
+	DGAME(1, "QUADRANT PRINT COMPLETE");
     }
     
     void Ship::lrscan(game_session *gamestate) {
@@ -1170,7 +1174,7 @@ namespace std {
 	float dir;
 	DVERB(1, "xdelta: %6.3f  ydelta: %6.3f", xdelta, ydelta);
 	if (abs(xdelta) < EPSILON) {
-	    dir = targ_r > ship_r ? 3 : 7;
+	    dir = targ_r > ship_r ? 7 : 3;
 	    DVERB(1, "%s", targ_r > ship_r ? "SOUTH" : "NORTH");
 	} else if (abs(ydelta) < EPSILON) {
 	    dir = targ_c > ship_c ? 1 : 5;
@@ -1373,7 +1377,7 @@ namespace std {
 	    enterprise.pos(s.row(), s.col());
 	    q.setsector(s, true);
 	    auto qs = q.sector(s.row(), s.col());
-	    DGAME(2, "q's sector %d,%d is %s (%d)", s.row(), s.col(), qs.glyph().c_str(), qs.id());
+	    DGAME(2, "q's sector %d,%d is %s (%d) [%s]", s.row(), s.col(), qs.glyph().c_str(), qs.id(), qs.glyph().c_str());
 	    if (q.num_klingons() > 0 && enterprise.shields()<=200) {
 		cout << "COMBAT AREA      CONDITION RED" << endl;
 		cout << "   SHIELDS DANGEROUSLY LOW" << endl;
@@ -1455,7 +1459,7 @@ namespace std {
 
 int main(int argc, char **argv) {
     try {
-	DBGENABLE(verbose);
+	//DBGENABLE(verbose);
 	//DBGENABLE(game);
 	dbg::g_level = 1;
 	return std::my_main(argc, argv);
